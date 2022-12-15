@@ -72,12 +72,12 @@ if targetScale =="기본부문":
 
 employeeCoeff = sMat@employee/totalDemandSum*1000
 
-# 레온티예프 행렬
+# 레온티예프 행렬, A=(midInput@np.linalg.inv(np.diag(totalDemandSum)))
 Leontieff = np.linalg.inv(np.eye(len(totalDemandSum))-(midInput@np.linalg.inv(np.diag(totalDemandSum))))
-AH = midInput@np.linalg.inv(np.diag(totalDemandSum))[:,-1]
+AH = (midInput@np.linalg.inv(np.diag(totalDemandSum)))[:-1,-1]
 
 # 생산유발효과
-prodEff = Leontieff[:-1,:-1]@AH[:-1]
+prodEff = Leontieff[:-1,:-1]@AH
 
 # 감응도 계수
 sensitivityCoeff = pd.DataFrame(((Leontieff.sum(axis=1))/(Leontieff.sum(axis=1).sum()))*len(Leontieff),columns=["감응도계수(전방연쇄효과)"])
@@ -94,12 +94,20 @@ empEff = pd.DataFrame(np.diag(employeeCoeff[:-1])@prodEff,columns=["취업유발
 # 임금유발효과
 wageEff = pd.DataFrame(np.diag(wageCoeff[:-1])@prodEff,columns=["임금유발효과"])
 
-prodEff = pd.DataFrame(Leontieff[:-1,:-1]@AH[:-1],columns=["생산유발효과"])
+prodEff = pd.DataFrame(Leontieff[:-1,:-1]@AH,columns=["생산유발효과"])
 
-Summary = pd.concat([prodEff,sensitivityCoeff,influenceCoeff,vaEff,empEff,wageEff],axis=1)
+# 산출역행렬(I-R)^-1
+outInverseMat = np.linalg.inv(np.eye(len(totalDemandSum))-(np.linalg.inv(np.diag(totalDemandSum))@midInput))
+XH = (np.linalg.inv(np.diag(totalDemandSum))@midInput)[-1,:-1]
+
+# 공급지장효과
+supplyshortageEff = pd.DataFrame(XH@outInverseMat[:-1,:-1], columns=["공급지장효과"])
+
+# 물가파급효과 
+priceEff = pd.DataFrame((np.linalg.inv(np.eye(len(totalDemandSum))-(midInput@np.linalg.inv(np.diag(totalDemandSum))).T))[:-1,:-1]@AH,columns=["물가파급효과"])
+
+Summary = pd.concat([prodEff,sensitivityCoeff,influenceCoeff,vaEff,empEff,wageEff,supplyshortageEff,priceEff],axis=1)
 
 Summary.to_excel('Output.xlsx')
-
-print(Leontieff.sum(axis=0))
 
 # 유발효과들 자기산업 무조건 1 아니다. 생산 유발효과만 자기산업이 1임
